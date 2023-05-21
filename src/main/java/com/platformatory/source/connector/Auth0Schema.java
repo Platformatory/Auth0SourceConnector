@@ -1,8 +1,12 @@
 package com.platformatory.source.connector;
 
+import com.platformatory.source.connector.models.IdentityData;
+import com.platformatory.source.connector.models.UserData;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+
+import java.util.List;
 
 public class Auth0Schema {
 
