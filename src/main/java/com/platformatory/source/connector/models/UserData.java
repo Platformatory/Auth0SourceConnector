@@ -1,18 +1,23 @@
 package com.platformatory.source.connector.models;
 
-import java.util.List;
-import java.util.Map;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.time.Instant;
+import java.util.*;
+
+import static com.platformatory.source.connector.Auth0Schema.*;
 
 public class UserData {
 
     private String userId;
     private String email;
-    private boolean emailVerified;
+    private Boolean emailVerified;
     private String username;
     private String phoneNumber;
-    private boolean phoneVerified;
-    private String createdAt;
-    private String updatedAt;
+    private Boolean phoneVerified;
+    private Instant createdAt;
+    private Instant updatedAt;
     private List<IdentityData> identities;
     private Map<String, String> appMetadata;
     private Map<String, String> userMetadata;
@@ -22,15 +27,15 @@ public class UserData {
     private List<String> multifactor;
     private String lastIp;
     private String lastLogin;
-    private int loginsCount;
-    private boolean blocked;
+    private Integer loginsCount;
+    private Boolean blocked;
     private String givenName;
     private String familyName;
 
     public UserData() {
     }
 
-    public UserData(String userId, String email, boolean emailVerified, String username, String phoneNumber, boolean phoneVerified, String createdAt, String updatedAt, List<IdentityData> identities, Map<String, String> appMetadata, Map<String, String> userMetadata, String picture, String name, String nickname, List<String> multifactor, String lastIp, String lastLogin, int loginsCount, boolean blocked, String givenName, String familyName) {
+    public UserData(String userId, String email, Boolean emailVerified, String username, String phoneNumber, Boolean phoneVerified, Instant createdAt, Instant updatedAt, List<IdentityData> identities, Map<String, String> appMetadata, Map<String, String> userMetadata, String picture, String name, String nickname, List<String> multifactor, String lastIp, String lastLogin, Integer loginsCount, Boolean blocked, String givenName, String familyName) {
         this.userId = userId;
         this.email = email;
         this.emailVerified = emailVerified;
@@ -70,7 +75,7 @@ public class UserData {
         this.email = email;
     }
 
-    public boolean isEmailVerified() {
+    public Boolean isEmailVerified() {
         return emailVerified;
     }
 
@@ -94,7 +99,7 @@ public class UserData {
         this.phoneNumber = phoneNumber;
     }
 
-    public boolean isPhoneVerified() {
+    public Boolean isPhoneVerified() {
         return phoneVerified;
     }
 
@@ -102,19 +107,19 @@ public class UserData {
         this.phoneVerified = phoneVerified;
     }
 
-    public String getCreatedAt() {
+    public Instant getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(String createdAt) {
+    public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
 
-    public String getUpdatedAt() {
+    public Instant getUpdatedAt() {
         return updatedAt;
     }
 
-    public void setUpdatedAt(String updatedAt) {
+    public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }
 
@@ -190,7 +195,7 @@ public class UserData {
         this.lastLogin = lastLogin;
     }
 
-    public int getLoginsCount() {
+    public Integer getLoginsCount() {
         return loginsCount;
     }
 
@@ -198,7 +203,7 @@ public class UserData {
         this.loginsCount = loginsCount;
     }
 
-    public boolean isBlocked() {
+    public Boolean isBlocked() {
         return blocked;
     }
 
@@ -220,5 +225,78 @@ public class UserData {
 
     public void setFamilyName(String familyName) {
         this.familyName = familyName;
+    }
+
+    public static UserData fromJson(JSONObject jsonObject){
+        UserData userData = new UserData();
+        userData.setUserId(jsonObject.getString(USER_ID_FIELD));
+        userData.setEmail(jsonObject.getString(EMAIL_FIELD));
+        userData.setEmailVerified(jsonObject.getBoolean(EMAIL_VERIFIED_FIELD));
+        userData.setUsername(jsonObject.getString(USERNAME_FIELD));
+        userData.setPhoneNumber(jsonObject.getString(PHONE_NUMBER_FIELD));
+        userData.setPhoneVerified(jsonObject.getBoolean(PHONE_VERIFIED_FIELD));
+        userData.setCreatedAt(Instant.parse(jsonObject.getString(CREATED_AT_FIELD)));
+        userData.setUpdatedAt(Instant.parse(jsonObject.getString(UPDATED_AT_FIELD)));
+
+        // Parse identities array
+        JSONArray identitiesArray = jsonObject.getJSONArray(IDENTITIES_FIELD);
+        List<IdentityData> identities = new ArrayList<>();
+        for (int i = 0; i < identitiesArray.length(); i++) {
+            JSONObject identityObject = identitiesArray.getJSONObject(i);
+            IdentityData identityData = new IdentityData();
+            identityData.setConnection(identityObject.getString(IDENTITIES_CONNECTION_FIELD));
+            identityData.setUserId(identityObject.getString(IDENTITIES_USER_ID_FIELD));
+            identityData.setProvider(identityObject.getString(IDENTITIES_PROVIDER_FIELD));
+            identityData.setSocial(identityObject.getBoolean(IDENTITIES_IS_SOCIAL_FIELD));
+            identities.add(identityData);
+        }
+        userData.setIdentities(identities);
+
+        // Parse app_metadata and user_metadata as maps
+        JSONObject appMetadataObject = jsonObject.optJSONObject(APP_METADATA_FIELD);
+        if (appMetadataObject != null) {
+            Map<String, String> appMetadata = new HashMap<>();
+            Iterator<String> appMetadataKeys = appMetadataObject.keys();
+            while (appMetadataKeys.hasNext()) {
+                String key = appMetadataKeys.next();
+                String value = appMetadataObject.getString(key);
+                appMetadata.put(key, value);
+            }
+            userData.setAppMetadata(appMetadata);
+        }
+
+        JSONObject userMetadataObject = jsonObject.optJSONObject(USER_METADATA_FIELD);
+        if (userMetadataObject != null) {
+            Map<String, String> userMetadata = new HashMap<>();
+            Iterator<String> userMetadataKeys = userMetadataObject.keys();
+            while (userMetadataKeys.hasNext()) {
+                String key = userMetadataKeys.next();
+                String value = userMetadataObject.getString(key);
+                userMetadata.put(key, value);
+            }
+            userData.setUserMetadata(userMetadata);
+        }
+
+        userData.setPicture(jsonObject.getString(PICTURE_FIELD));
+        userData.setName(jsonObject.getString(NAME_FIELD));
+        userData.setNickname(jsonObject.getString(NICKNAME_FIELD));
+
+        // Parse multiFactor array
+        JSONArray multiFactorArray = jsonObject.getJSONArray(MULTI_FACTOR_FIELD);
+        List<String> multiFactor = new ArrayList<>();
+        for (int i = 0; i < multiFactorArray.length(); i++) {
+            String factor = multiFactorArray.getString(i);
+            multiFactor.add(factor);
+        }
+        userData.setMultifactor(multiFactor);
+
+        userData.setLastIp(jsonObject.getString(LAST_IP_FIELD));
+        userData.setLastLogin(jsonObject.getString(LAST_LOGIN_FIELD));
+        userData.setLoginsCount(jsonObject.getInt(LOGINS_COUNT_FIELD));
+        userData.setBlocked(jsonObject.getBoolean(BLOCKED_FIELD));
+        userData.setGivenName(jsonObject.getString(GIVEN_NAME_FIELD));
+        userData.setFamilyName(jsonObject.getString(FAMILY_NAME_FIELD));
+
+        return userData;
     }
 }

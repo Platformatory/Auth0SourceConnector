@@ -1,18 +1,17 @@
 package com.platformatory.source.connector;
 
-import com.platformatory.source.connector.models.IdentityData;
-import com.platformatory.source.connector.models.UserData;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
-import org.apache.kafka.connect.data.Struct;
-
-import java.util.List;
+import org.apache.kafka.connect.data.Timestamp;
 
 public class Auth0Schema {
 
-    public static final String SCHEMA_NAME = "user_schema";
+    public static final String NEXT_PAGE_FIELD = "next_page";
 
-    // Define field names
+    public static final String IDENTIFIER = "identifier";
+    public static final String REQUEST = "request";
+
+    // User Field
     public static final String USER_ID_FIELD = "user_id";
     public static final String EMAIL_FIELD = "email";
     public static final String EMAIL_VERIFIED_FIELD = "email_verified";
@@ -21,13 +20,12 @@ public class Auth0Schema {
     public static final String PHONE_VERIFIED_FIELD = "phone_verified";
     public static final String CREATED_AT_FIELD = "created_at";
     public static final String UPDATED_AT_FIELD = "updated_at";
-    public static final String IDENTITIES_FIELD = "identities";
     public static final String APP_METADATA_FIELD = "app_metadata";
     public static final String USER_METADATA_FIELD = "user_metadata";
     public static final String PICTURE_FIELD = "picture";
     public static final String NAME_FIELD = "name";
     public static final String NICKNAME_FIELD = "nickname";
-    public static final String MULTIFACTOR_FIELD = "multifactor";
+    public static final String MULTI_FACTOR_FIELD = "multifactor";
     public static final String LAST_IP_FIELD = "last_ip";
     public static final String LAST_LOGIN_FIELD = "last_login";
     public static final String LOGINS_COUNT_FIELD = "logins_count";
@@ -35,9 +33,18 @@ public class Auth0Schema {
     public static final String GIVEN_NAME_FIELD = "given_name";
     public static final String FAMILY_NAME_FIELD = "family_name";
 
-    public static final Schema SCHEMA = buildSchema();
 
-    private static Schema buildSchema() {
+    // Identities Field
+    public static final String IDENTITIES_FIELD = "identities";
+    public static final String IDENTITIES_CONNECTION_FIELD = "connection";
+    public static final String IDENTITIES_USER_ID_FIELD = "user_id";
+    public static final String IDENTITIES_PROVIDER_FIELD = "provider";
+    public static final String IDENTITIES_IS_SOCIAL_FIELD = "isSocial";
+
+
+    /*public static final Schema SCHEMA = buildSchema();*/
+
+    /*private static Schema buildSchema() {
         SchemaBuilder builder = SchemaBuilder.struct().name(SCHEMA_NAME)
                 .field(USER_ID_FIELD, Schema.STRING_SCHEMA)
                 .field(EMAIL_FIELD, Schema.STRING_SCHEMA)
@@ -113,6 +120,71 @@ public class Auth0Schema {
         }
 
         return identitiesArray;
-    }
+    }*/
 
+
+    // Schema names
+    public static final String SCHEMA_KEY = "com.platformatory.source.connector.UserKey";
+    public static final String SCHEMA_VALUE_USER = "com.platformatory.source.connector.UserValue";
+    public static final String SCHEMA_VALUE_IDENTITIES = "com.platformatory.source.connector.Identities";
+
+
+
+    public static final Schema KEY_SCHEMA = SchemaBuilder.struct().name(SCHEMA_KEY)
+            .version(1)
+            .field(IDENTIFIER, Schema.STRING_SCHEMA)
+            .field(REQUEST, Schema.STRING_SCHEMA)
+            .build();
+
+    public static final Schema IDENTITIES_SCHEMA = SchemaBuilder.struct().name(SCHEMA_VALUE_IDENTITIES)
+            .version(1)
+            .field(IDENTITIES_CONNECTION_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(IDENTITIES_USER_ID_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(IDENTITIES_PROVIDER_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(IDENTITIES_IS_SOCIAL_FIELD, Schema.OPTIONAL_BOOLEAN_SCHEMA)
+            .build();
+
+    /*public static final Schema APP_METADATA_SCHEMA = SchemaBuilder.struct().name(SCHEMA_VALUE_APP_METADATA)
+            .version(1)
+            .field(IDENTITIES_USER_ID_FIELD, Schema.STRING_SCHEMA)
+            .optional()
+            .build();
+
+    public static final Schema USER_METADATA_SCHEMA = SchemaBuilder.struct().name(SCHEMA_VALUE_USER_METADATA)
+            .version(1)
+            .field(IDENTITIES_USER_ID_FIELD, Schema.STRING_SCHEMA)
+            .optional()
+            .build();
+
+    public static final Schema MUTI_FACTOR_SCHEMA = SchemaBuilder.struct().name(SCHEMA_VALUE_MULTI_FACTOR)
+            .version(1)
+            .field(IDENTITIES_USER_ID_FIELD, Schema.STRING_SCHEMA)
+            .optional()
+            .build();*/
+
+    public static final Schema VALUE_SCHEMA = SchemaBuilder.struct().name(SCHEMA_VALUE_USER)
+            .version(2)
+            .field(USER_ID_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(EMAIL_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(EMAIL_VERIFIED_FIELD, Schema.OPTIONAL_BOOLEAN_SCHEMA)
+            .field(USERNAME_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(PHONE_NUMBER_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(PHONE_VERIFIED_FIELD, Schema.OPTIONAL_BOOLEAN_SCHEMA)
+            .field(CREATED_AT_FIELD, Timestamp.SCHEMA)
+            .field(UPDATED_AT_FIELD, Timestamp.SCHEMA)
+            .field(PICTURE_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(NAME_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(NICKNAME_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(LAST_IP_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(LAST_LOGIN_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(LOGINS_COUNT_FIELD, Schema.OPTIONAL_INT32_SCHEMA)
+            .field(BLOCKED_FIELD, Schema.OPTIONAL_BOOLEAN_SCHEMA)
+            .field(GIVEN_NAME_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+            .field(FAMILY_NAME_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
+
+            .field(IDENTITIES_FIELD, SchemaBuilder.array(IDENTITIES_SCHEMA).build())
+            .field(APP_METADATA_FIELD, SchemaBuilder.map(Schema.OPTIONAL_STRING_SCHEMA, Schema.OPTIONAL_STRING_SCHEMA))
+            .field(USER_METADATA_FIELD, SchemaBuilder.map(Schema.OPTIONAL_STRING_SCHEMA, Schema.OPTIONAL_STRING_SCHEMA))
+            .field(MULTI_FACTOR_FIELD, SchemaBuilder.array(Schema.OPTIONAL_STRING_SCHEMA).build())
+            .build();
 }

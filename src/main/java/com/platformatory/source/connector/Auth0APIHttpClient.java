@@ -35,11 +35,11 @@ public class Auth0APIHttpClient {
     }
 
 
-    protected JSONArray getNextIssues(Integer page, Instant since) throws InterruptedException {
+    protected JSONArray getNextIssues() throws InterruptedException {
 
         HttpResponse<JsonNode> jsonResponse;
         try {
-            jsonResponse = getNextIssuesAPI(page, since);
+            jsonResponse = getNextIssuesAPI();
 
             // deal with headers in any case
             Headers headers = jsonResponse.getHeaders();
@@ -61,16 +61,16 @@ public class Auth0APIHttpClient {
                     long sleepTime = XRateReset - Instant.now().getEpochSecond();
                     log.info(String.format("Sleeping for %s seconds", sleepTime ));
                     Thread.sleep(1000 * sleepTime);
-                    return getNextIssues(page, since);
+                    return getNextIssues();
                 default:
-                    log.error(constructUrl(page, since));
+                    log.error(constructUrl());
                     log.error(String.valueOf(jsonResponse.getStatus()));
                     log.error(jsonResponse.getBody().toString());
                     log.error(jsonResponse.getHeaders().toString());
                     log.error("Unknown error: Sleeping 5 seconds " +
                             "before re-trying");
                     Thread.sleep(5000L);
-                    return getNextIssues(page, since);
+                    return getNextIssues();
             }
         } catch (UnirestException e) {
             e.printStackTrace();
@@ -79,17 +79,19 @@ public class Auth0APIHttpClient {
         }
     }
 
-    protected HttpResponse<JsonNode> getNextIssuesAPI(Integer page, Instant since) throws UnirestException {
-        GetRequest unirest = Unirest.get(constructUrl());
-        if (!config.getAPIKey().isEmpty() && !config.getAPISecret().isEmpty() ){
-            unirest = unirest.basicAuth(config.getAPIKey(), config.getAPISecret());
-        }
+    protected HttpResponse<JsonNode> getNextIssuesAPI() throws UnirestException {
+        GetRequest unirest = Unirest.get(constructUrl())
+                .header("authorization", "Bearer "+ config.getAPIToken());
+
         log.debug(String.format("GET %s", unirest.getUrl()));
         return unirest.asJson();
     }
 
     protected String constructUrl(){
-        return "https://api/v2/users";
+        return String.format(
+                "%s%s",
+                config.getDomain(),
+                config.getRequestConfig());
     }
 
     public void sleep() throws InterruptedException {
