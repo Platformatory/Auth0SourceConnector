@@ -1,23 +1,31 @@
 package com.platformatory.source.connector;
 
+import com.auth0.client.mgmt.ManagementAPI;
+import com.auth0.client.mgmt.filter.UserFilter;
+import com.auth0.exception.Auth0Exception;
+import com.auth0.json.mgmt.users.User;
+import com.auth0.json.mgmt.users.UsersPage;
+import com.auth0.net.Request;
+import com.auth0.net.Response;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
-import com.platformatory.source.connector.models.IdentityData;
-import com.platformatory.source.connector.models.UserData;
+import com.mashape.unirest.http.HttpResponse;
+import com.mashape.unirest.http.Unirest;
+import com.mashape.unirest.http.exceptions.UnirestException;
+import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static com.platformatory.source.connector.Auth0Schema.*;
 
 
 public class MySourceTask extends SourceTask {
@@ -26,13 +34,15 @@ public class MySourceTask extends SourceTask {
         for logging
     */
 
-
     private static final Logger log = LoggerFactory.getLogger(MySourceTask.class);
     public MySourceConnectorConfig config;
-
-    Auth0APIHttpClient auth0APIHttpClient;
-    protected Instant nextQuerySince;
-    protected Instant lastUpdatedAt;
+    private static final long TOKEN_EXPIRATION_BUFFER_SECONDS = 60;
+    private String accessToken;
+    private Instant tokenExpiration;
+    private String domain;
+    private String clientId;
+    private String clientSecret;
+    private String apiUrl;
 
     @Override
     public String version() {
@@ -41,207 +51,92 @@ public class MySourceTask extends SourceTask {
 
     @Override
     public void start(Map<String, String> map) {
-        //TODO: Do things here that are required to start your task. This could be open a connection to a database, etc.
+        // TODO: Do things here that are required to start your task. This could be open a connection to a database, etc.
         config = new MySourceConnectorConfig(map);
-        auth0APIHttpClient = new Auth0APIHttpClient(config);
-        initializeLastVariables();
-    }
-    private void initializeLastVariables(){
-        Map<String, Object> lastSourceOffset = null;
-        lastSourceOffset = context.offsetStorageReader().offset(sourcePartition());
-        if( lastSourceOffset != null){
-            Object updatedAt = lastSourceOffset.get(UPDATED_AT_FIELD);
-            if((updatedAt instanceof String)){
-                nextQuerySince = Instant.parse((String) updatedAt);
-            }
+        domain = config.getDomain();
+        clientId = config.getClientIdConfig();
+        clientSecret = config.getClientSecretConfig();
+        apiUrl = domain + "/api/v2/" + config.getAPIEndpoint();
+
+        try {
+            refreshToken(); // to get the initial access token
+        } catch (UnirestException e) {
+            throw new RuntimeException(e);
         }
     }
 
     @Override
-    public List<SourceRecord> poll() throws InterruptedException {
-        //TODO: Create SourceRecord objects that will be sent the kafka cluster.
-        auth0APIHttpClient.sleepIfNeed();
+    public List<SourceRecord> poll() {
+        // TODO: Create SourceRecord objects that will be sent to the Kafka cluster.
+        // fetch data and create SourceRecord's
 
-        // fetch data
-        final ArrayList<SourceRecord> records = new ArrayList<>();
-        JSONArray userData = auth0APIHttpClient.getNextIssues();
-        // we'll count how many results we get with i
-        int i = 0;
-        for (Object obj : userData) {
-            UserData issue = UserData.fromJson((JSONObject) obj);
-            SourceRecord sourceRecord = generateSourceRecord(issue);
-            records.add(sourceRecord);
-            i += 1;
-            lastUpdatedAt = issue.getUpdatedAt();
+        // Check if the token has expired or about to expire
+        if (tokenExpiration == null || Instant.now().isAfter(tokenExpiration.minusSeconds(TOKEN_EXPIRATION_BUFFER_SECONDS))) {
+            try {
+                refreshToken(); // Refresh the access token
+            } catch (UnirestException e) {
+                log.error("Failed to refresh the access token: {}", e.getMessage());
+                return Collections.emptyList();
+            }
         }
-        if (i > 0) log.info(String.format("Fetched %s record(s)", i));
-        if (i == 100){
-            // we have reached a full batch, we need to get the next one
 
+        // Use the refreshed access token to make API calls
+        ManagementAPI mgmt = ManagementAPI.newBuilder(domain, accessToken).build();
+        Request<UsersPage> usersPageRequest = mgmt.users().list(new UserFilter());
+
+        try {
+            Response<UsersPage> usersPageResponse = usersPageRequest.execute();
+            ObjectMapper mapper = new ObjectMapper();
+            UsersPage usersPage = usersPageResponse.getBody();
+
+            List<SourceRecord> records = new ArrayList<>();
+            for (User user : usersPage.getItems()) {
+                String jsonString = mapper.writeValueAsString(user);
+                Map<String, String> sourcePartition = Collections.emptyMap();
+                Map<String, Long> sourceOffset = Collections.emptyMap();
+                String key = user.getId();
+                SourceRecord record = new SourceRecord(sourcePartition, sourceOffset, "auth0_users", Schema.STRING_SCHEMA, key, Schema.STRING_SCHEMA, jsonString);
+
+                records.add(record);
+            }
+
+            return records;
+        } catch (Auth0Exception | JsonProcessingException e) {
+            log.error("Error while fetching data: {}", e.getMessage());
         }
-        else {
-            nextQuerySince = lastUpdatedAt.plusSeconds(1);
 
-            auth0APIHttpClient.sleep();
-        }
-        return records;
-    }
-
-    private SourceRecord generateSourceRecord(UserData userData) {
-        return new SourceRecord(
-                sourcePartition(),
-                sourceOffset(userData.getUpdatedAt()),
-                config.getTopic(),
-                null, // partition will be inferred by the framework
-                KEY_SCHEMA,
-                buildRecordKey(userData),
-                VALUE_SCHEMA,
-                buildRecordValue(userData),
-                userData.getUpdatedAt().toEpochMilli());
+        return Collections.emptyList(); // if no data
     }
 
     @Override
     public void stop() {
-        //TODO: Do whatever is required to stop your task.
+        // TODO: Do whatever is required to stop your task.
     }
 
-    private Map<String, String> sourcePartition() {
-        Map<String, String> map = new HashMap<>();
-        map.put(IDENTIFIER, config.getDomain());
-        map.put(REQUEST, config.getDomain());
-        return map;
+    private void refreshToken() throws UnirestException {
+        String url = "https://%s/oauth/token";
+        String audience = "https://%s/api/v2/";
+
+        String formattedUrl = String.format(url, domain);
+        String formattedAudience = String.format(audience, domain);
+
+        HttpResponse<String> response = Unirest.post(formattedUrl)
+                .header("content-type", "application/x-www-form-urlencoded")
+                .body(String.format("grant_type=client_credentials&client_id=%s&client_secret=%s&audience=%s",
+                        clientId, clientSecret, formattedAudience))
+                .asString();
+
+        // Assuming 'response' contains the JSON response as a string
+        String responseBody = response.getBody();
+
+        // Parse the JSON response
+        JSONObject jsonResponse = new JSONObject(responseBody);
+
+        // Extract the access_token value
+        accessToken = jsonResponse.getString("access_token");
+
+        // Calculate token expiration time
+        long expiresIn = jsonResponse.getLong("expires_in");
+        tokenExpiration = Instant.now().plusSeconds(expiresIn);
     }
-
-    private Map<String, String> sourceOffset(Instant updatedAt) {
-        Map<String, String> map = new HashMap<>();
-        map.put(UPDATED_AT_FIELD, updatedAt.toString());
-        return map;
-    }
-
-    private Struct buildRecordKey(UserData userData){
-        // Key Schema
-        Struct key = new Struct(KEY_SCHEMA)
-                .put(IDENTIFIER, config.getDomain())
-                .put(REQUEST, config.getRequestConfig());
-
-        return key;
-    }
-
-    public Struct buildRecordValue(UserData userData) {
-        Struct valueStruct = new Struct(VALUE_SCHEMA);
-
-        if (userData.getEmail() != null) {
-            valueStruct.put(USER_ID_FIELD, userData.getUserId());
-        }
-
-        if (userData.getEmail() != null) {
-            valueStruct.put(EMAIL_FIELD, userData.getEmail());
-        }
-        if (userData.isEmailVerified() != null) {
-            valueStruct.put(EMAIL_VERIFIED_FIELD, userData.isEmailVerified());
-        }
-        if (userData.getUsername() != null) {
-            valueStruct.put(USERNAME_FIELD, userData.getUsername());
-        }
-        if (userData.getPhoneNumber() != null) {
-            valueStruct.put(PHONE_NUMBER_FIELD, userData.getPhoneNumber());
-        }
-        if (userData.isPhoneVerified() != null) {
-            valueStruct.put(PHONE_VERIFIED_FIELD, userData.isPhoneVerified());
-        }
-        if (userData.getCreatedAt() != null) {
-            valueStruct.put(CREATED_AT_FIELD, userData.getCreatedAt());
-        }
-        if (userData.getUpdatedAt() != null) {
-            valueStruct.put(UPDATED_AT_FIELD, userData.getUpdatedAt());
-        }
-        if (userData.getPicture() != null) {
-            valueStruct.put(PICTURE_FIELD, userData.getPicture());
-        }
-        if (userData.getName() != null) {
-            valueStruct.put(NAME_FIELD, userData.getName());
-        }
-        if (userData.getNickname() != null) {
-            valueStruct.put(NICKNAME_FIELD, userData.getNickname());
-        }
-        if (userData.getLastIp() != null) {
-            valueStruct.put(LAST_IP_FIELD, userData.getLastIp());
-        }
-        if (userData.getLastLogin() != null) {
-            valueStruct.put(LAST_LOGIN_FIELD, userData.getLastLogin());
-        }
-        if (userData.getLoginsCount() != null) {
-            valueStruct.put(LOGINS_COUNT_FIELD, userData.getLoginsCount());
-        }
-        if (userData.isBlocked() != null) {
-            valueStruct.put(BLOCKED_FIELD, userData.isBlocked());
-        }
-        if (userData.getGivenName() != null) {
-            valueStruct.put(GIVEN_NAME_FIELD, userData.getGivenName());
-        }
-        if (userData.getFamilyName() != null) {
-            valueStruct.put(FAMILY_NAME_FIELD, userData.getFamilyName());
-        }
-
-        // Add identities array
-        if (userData.getIdentities() != null) {
-            List<Struct> identitiesList = new ArrayList<>();
-            for (IdentityData identityData : userData.getIdentities()) {
-                Struct identityStruct = new Struct(IDENTITIES_SCHEMA)
-                        .put(IDENTITIES_CONNECTION_FIELD, identityData.getConnection())
-                        .put(IDENTITIES_USER_ID_FIELD, identityData.getUserId())
-                        .put(IDENTITIES_PROVIDER_FIELD, identityData.getProvider())
-                        .put(IDENTITIES_IS_SOCIAL_FIELD, identityData.isSocial());
-                identitiesList.add(identityStruct);
-            }
-            valueStruct.put(IDENTITIES_FIELD, identitiesList.toArray());
-        }
-
-        // Add app_metadata map
-        if (userData.getAppMetadata() != null) {
-            Map<String, String> appMetadataMap = new HashMap<>(userData.getAppMetadata());
-            valueStruct.put(APP_METADATA_FIELD, appMetadataMap);
-        }
-
-        // Add user_metadata map
-        if (userData.getUserMetadata() != null) {
-            Map<String, String> userMetadataMap = new HashMap<>(userData.getUserMetadata());
-            valueStruct.put(USER_METADATA_FIELD, userMetadataMap);
-        }
-
-        // Add multiFactor array
-        if (userData.getMultifactor() != null) {
-            valueStruct.put(MULTI_FACTOR_FIELD, userData.getMultifactor().toArray());
-        }
-
-        return valueStruct;
-    }
-
-
 }
-/*Struct valueStruct = new Struct(VALUE_SCHEMA)
-                .put(URL_FIELD, issue.getUrl())
-                .put(TITLE_FIELD, issue.getTitle())
-                .put(CREATED_AT_FIELD, Date.from(issue.getCreatedAt()))
-                .put(UPDATED_AT_FIELD, Date.from(issue.getUpdatedAt()))
-                .put(NUMBER_FIELD, issue.getNumber())
-                .put(STATE_FIELD, issue.getState());
-
-        // User is mandatory
-        User user = issue.getUser();
-        Struct userStruct = new Struct(USER_SCHEMA)
-                .put(USER_URL_FIELD, user.getUrl())
-                .put(USER_ID_FIELD, user.getId())
-                .put(USER_LOGIN_FIELD, user.getLogin());
-        valueStruct.put(USER_FIELD, userStruct);
-
-        // Pull request is optional
-        PullRequest pullRequest = issue.getPullRequest();
-        if (pullRequest != null) {
-            Struct prStruct = new Struct(PR_SCHEMA)
-                    .put(PR_URL_FIELD, pullRequest.getUrl())
-                    .put(PR_HTML_URL_FIELD, pullRequest.getHtmlUrl());
-            valueStruct.put(PR_FIELD, prStruct);
-        }
-
-        return valueStruct;*/

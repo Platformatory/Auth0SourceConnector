@@ -1,6 +1,5 @@
 package com.platformatory.source.connector;
 
-import com.platformatory.source.connector.Validator.BatchSizeValidator;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
@@ -13,17 +12,19 @@ public class MySourceConnectorConfig extends AbstractConfig {
   public static final String TOPIC_CONFIG = "topic";
   private static final String TOPIC_DOC = "Topic to write to";
 
-  public static final String IDENTIFIER_CONFIG = "your_identifier";
-  private static final String IDENTIFIER_CONFIG_DOC = "Unique identifier for the API";
+  public static final String API_ENDPOINT_CONFIG = "api.endpoint";
+  private static final String API_ENDPOINT_CONFIG_DOC = "Unique identifier for the API";
 
-  public static final String BATCH_SIZE_CONFIG = "batch_size";
-  private static final String BATCH_SIZE_DOC = "Number of data points to retrieve at a time. Defaults to 100 (max value)";
+  public static final String DOMAIN_CONFIG = "domain";
+  public static final String DOMAIN_CONFIG_DOC = "Domain for the Application";
 
-  public static final String ACCESS_TOKEN_KEY = "access_token_key";
-  private static final String ACCESS_TOKEN_KEY_DOC = "API access token key";
+  public static final String CLIENT_ID_TOKEN = "client.id";
+  private static final String CLIENT_ID_DOC = "Client ID";
 
-  public static final String REQUEST_CONFIG = "api_request_config";
-  private static final String REQUEST_DOC = "Request Parameter";
+  public static final String CLIENT_SECRET_CONFIG = "client.secret";
+  private static final String CLIENT_SECRET_DOC = "Client Secret";
+
+
 
   public MySourceConnectorConfig(Map<String, String> originals) {
     super(config(), originals);
@@ -32,10 +33,10 @@ public class MySourceConnectorConfig extends AbstractConfig {
   public static ConfigDef config() {
     return new ConfigDef()
             .define(TOPIC_CONFIG, Type.STRING, Importance.HIGH, TOPIC_DOC)
-            .define(IDENTIFIER_CONFIG, Type.STRING, Importance.HIGH, IDENTIFIER_CONFIG_DOC)
-            .define(BATCH_SIZE_CONFIG, Type.INT, 100, new BatchSizeValidator(), Importance.LOW, BATCH_SIZE_DOC)
-            .define(ACCESS_TOKEN_KEY, Type.STRING,"", Importance.HIGH, ACCESS_TOKEN_KEY_DOC)
-            .define(REQUEST_CONFIG, Type.STRING, Importance.HIGH, REQUEST_DOC);
+            .define(API_ENDPOINT_CONFIG, Type.STRING, Importance.HIGH, API_ENDPOINT_CONFIG_DOC)
+            .define(DOMAIN_CONFIG, Type.STRING, Importance.HIGH, DOMAIN_CONFIG_DOC)
+            .define(CLIENT_ID_TOKEN, Type.STRING, Importance.HIGH, CLIENT_ID_DOC)
+            .define(CLIENT_SECRET_CONFIG, Type.STRING, Importance.HIGH, CLIENT_SECRET_DOC);
   }
 
   public String getTopic(){
@@ -43,17 +44,16 @@ public class MySourceConnectorConfig extends AbstractConfig {
   }
 
   public String getDomain(){
-    return this.getString(IDENTIFIER_CONFIG);
+    return this.getString(DOMAIN_CONFIG);
   }
 
-  public Integer getBatchSize() {
-    return this.getInt(BATCH_SIZE_CONFIG);
+  public String getAPIEndpoint() {
+    return this.getString(API_ENDPOINT_CONFIG);
   }
 
-  public String getAPIToken() {
-    return this.getString(ACCESS_TOKEN_KEY);
+  public String getClientIdConfig() {
+    return this.getString(CLIENT_ID_TOKEN);
   }
 
-  public String getRequestConfig(){return this.getString(REQUEST_CONFIG);}
-
+  public String getClientSecretConfig(){return this.getString(CLIENT_SECRET_CONFIG);}
 }
