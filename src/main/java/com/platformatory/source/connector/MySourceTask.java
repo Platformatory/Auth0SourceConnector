@@ -14,7 +14,6 @@ import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
 import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.json.JSONObject;
@@ -42,7 +41,7 @@ public class MySourceTask extends SourceTask {
     private String domain;
     private String clientId;
     private String clientSecret;
-    private String apiUrl;
+    private Long lastStoredPosition = null; // You would declare this at the beginning of your class.
 
     @Override
     public String version() {
@@ -56,7 +55,13 @@ public class MySourceTask extends SourceTask {
         domain = config.getDomain();
         clientId = config.getClientIdConfig();
         clientSecret = config.getClientSecretConfig();
-        apiUrl = domain + "/api/v2/" + config.getAPIEndpoint();
+
+        // Get last saved offset
+        Map<String, Object> offset = context.offsetStorageReader().offset(Collections.singletonMap("my_source", "users"));
+        if (offset != null) {
+            // If there was a previously saved offset, use it to resume processing
+            lastStoredPosition = (Long) offset.get("position");
+        }
 
         try {
             refreshToken(); // to get the initial access token
@@ -82,8 +87,8 @@ public class MySourceTask extends SourceTask {
 
         // Use the refreshed access token to make API calls
         ManagementAPI mgmt = ManagementAPI.newBuilder(domain, accessToken).build();
-        Request<UsersPage> usersPageRequest = mgmt.users().list(new UserFilter());
 
+        Request<UsersPage> usersPageRequest = mgmt.users().list(new UserFilter());
         try {
             Response<UsersPage> usersPageResponse = usersPageRequest.execute();
             ObjectMapper mapper = new ObjectMapper();
@@ -91,18 +96,28 @@ public class MySourceTask extends SourceTask {
 
             List<SourceRecord> records = new ArrayList<>();
             for (User user : usersPage.getItems()) {
-                String jsonString = mapper.writeValueAsString(user);
-                Map<String, String> sourcePartition = Collections.emptyMap();
-                Map<String, Long> sourceOffset = Collections.emptyMap();
-                String key = user.getId();
-                SourceRecord record = new SourceRecord(sourcePartition, sourceOffset, "auth0_users", Schema.STRING_SCHEMA, key, Schema.STRING_SCHEMA, jsonString);
+                // Only process users that are newer than the last stored position
+                if (lastStoredPosition == null || user.getUpdatedAt().getTime() > lastStoredPosition) {
+                    String jsonString = mapper.writeValueAsString(user);
 
-                records.add(record);
+                    Map<String, String> sourcePartition = Collections.singletonMap("my_source", "users");
+                    Map<String, Object> sourceOffset = Collections.singletonMap("position", user.getUpdatedAt().getTime());
+
+                    String key = user.getId();
+                    SourceRecord record = new SourceRecord(sourcePartition, sourceOffset, "users_" + config.getTopic(), Schema.STRING_SCHEMA, key, Schema.STRING_SCHEMA, jsonString);
+                    records.add(record);
+                    Thread.sleep(1000);
+
+                    // Update the lastStoredPosition with the current user's updatedAt time
+                    lastStoredPosition = user.getUpdatedAt().getTime();
+                }
             }
 
             return records;
         } catch (Auth0Exception | JsonProcessingException e) {
             log.error("Error while fetching data: {}", e.getMessage());
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
 
         return Collections.emptyList(); // if no data
@@ -139,4 +154,5 @@ public class MySourceTask extends SourceTask {
         long expiresIn = jsonResponse.getLong("expires_in");
         tokenExpiration = Instant.now().plusSeconds(expiresIn);
     }
+
 }

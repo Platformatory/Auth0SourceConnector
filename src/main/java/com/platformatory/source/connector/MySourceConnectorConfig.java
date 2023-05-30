@@ -12,9 +12,6 @@ public class MySourceConnectorConfig extends AbstractConfig {
   public static final String TOPIC_CONFIG = "topic";
   private static final String TOPIC_DOC = "Topic to write to";
 
-  public static final String API_ENDPOINT_CONFIG = "api.endpoint";
-  private static final String API_ENDPOINT_CONFIG_DOC = "Unique identifier for the API";
-
   public static final String DOMAIN_CONFIG = "domain";
   public static final String DOMAIN_CONFIG_DOC = "Domain for the Application";
 
@@ -33,7 +30,6 @@ public class MySourceConnectorConfig extends AbstractConfig {
   public static ConfigDef config() {
     return new ConfigDef()
             .define(TOPIC_CONFIG, Type.STRING, Importance.HIGH, TOPIC_DOC)
-            .define(API_ENDPOINT_CONFIG, Type.STRING, Importance.HIGH, API_ENDPOINT_CONFIG_DOC)
             .define(DOMAIN_CONFIG, Type.STRING, Importance.HIGH, DOMAIN_CONFIG_DOC)
             .define(CLIENT_ID_TOKEN, Type.STRING, Importance.HIGH, CLIENT_ID_DOC)
             .define(CLIENT_SECRET_CONFIG, Type.STRING, Importance.HIGH, CLIENT_SECRET_DOC);
@@ -45,10 +41,6 @@ public class MySourceConnectorConfig extends AbstractConfig {
 
   public String getDomain(){
     return this.getString(DOMAIN_CONFIG);
-  }
-
-  public String getAPIEndpoint() {
-    return this.getString(API_ENDPOINT_CONFIG);
   }
 
   public String getClientIdConfig() {
