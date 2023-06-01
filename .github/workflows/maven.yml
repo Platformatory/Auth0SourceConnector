@@ -1,0 +1,56 @@
+# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Java CI with Maven Docker
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build Maven inside Docker Container
+        run: |
+          branch=$(echo "${GITHUB_REF#refs/heads/}")
+          timestamp=$(date '+%d-%m-%Y:%H:%M')
+          docker run --rm \
+              -v ${{ github.workspace }}:/workspace \
+              -w /workspace \
+              maven:3.8.4-openjdk-11 \
+              sh -c "mvn clean compile assembly:single && \
+                    mkdir -p target/${branch}/${timestamp} && \
+                    cp target/my-project-fat.jar target/${branch}/${timestamp}/my-project-fat.jar"
+
+      - name: List files and directories after build
+        run: |
+          ls -al
+          ls -al target
+
+      - name: Upload Fat JAR to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./target/${{ github.ref }}/${{ env.timestamp }}/fat-jar
+          asset_name: ${{ github.ref }}/fat-jar
+          asset_content_type: application/java-archive
+
+      - name: Upload JAR to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./target/${{ github.ref }}/${{ env.timestamp }}/jar
+          asset_name: ${{ github.ref }}/jar
+          asset_content_type: application/java-archive
