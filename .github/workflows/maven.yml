@@ -22,9 +22,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-#       - name: Build Maven
-#         run: mvn clean package
-
       - name: Build Maven inside Docker Container
         run: |
           branch=$(echo "${GITHUB_REF#refs/heads/}")
@@ -34,6 +31,13 @@ jobs:
               -w /workspace \
               maven:3.8.4-openjdk-11 \
               sh -c "mvn clean package"
+              
+      - name: Check generated JAR files
+        run: |
+            branch=$(echo "${GITHUB_REF#refs/heads/}")
+            timestamp=$(date '+%d-%m-%Y:%H:%M')
+            ls -al /workspace/target/${branch}/${timestamp}
+
      
       
       - name: Debug target directory
