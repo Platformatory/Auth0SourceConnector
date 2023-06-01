@@ -32,7 +32,7 @@ jobs:
               maven:3.8.4-openjdk-11 \
               sh -c "mvn clean compile assembly:single && \
                     mkdir -p target/${branch}/${timestamp} && \
-                    cp target/my-project-fat.jar target/${branch}/${timestamp}/my-project-fat.jar"
+                    cp target/my-project.jar target/${branch}/${timestamp}/my-project.jar"
 
       - name: List files and directories after build
         run: |
