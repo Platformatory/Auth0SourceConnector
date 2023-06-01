@@ -33,9 +33,7 @@ jobs:
               -v ${{ github.workspace }}:/workspace \
               -w /workspace \
               maven:3.8.4-openjdk-11 \
-              sh -c "mvn clean package && \
-                    cp target/ target/${branch}/${timestamp}/fat-jar && \
-                    cp target/ target/${branch}/${timestamp}/jar"
+              sh -c "mvn clean package 
      
       
       - name: Debug target directory
