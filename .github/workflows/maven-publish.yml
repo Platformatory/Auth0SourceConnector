@@ -15,19 +15,33 @@ on:
     branches: [ "main" ]
 
 jobs:
+  depchecktest:
+    runs-on: ubuntu-latest
+    name: depecheck_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build project with Maven
+        run: mvn clean install
+      - name: Depcheck
+        uses: dependency-check/Dependency-Check_Action@main
+        id: Depcheck
+        with:
+          project: 'Auth0SourceConnector'
+          path: '.'
+          format: 'HTML'
+          out: 'reports' # this is the default, no need to specify unless you wish to override it
+          args: >
+            --failOnCVSS 7
+            --enableRetired
+      - name: Upload Test results
+        uses: actions/upload-artifact@master
+        with:
+           name: Depcheck report
+           path: ${{github.workspace}}/reports
+
   build:
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Fetch Dependency Check
-        uses: owasp/dependency-check-action@v3
-        with:
-          format: "HTML"
-          output-directory: "dependency-check-report"
-
       - name: Build Maven inside Docker Container
         run: |
           branch=$(echo "${GITHUB_REF#refs/heads/}")
