@@ -32,7 +32,7 @@ jobs:
           docker run --rm \
               -v ${{ github.workspace }}:/workspace \
               -w /workspace \
-              adoptopenjdk:11-jdk-hotspot \
+              maven:3.8.4-openjdk-11 \
               sh -c "mvn clean package && \
                     cp target/my-project-fat.jar target/${branch}/${timestamp}/fat-jar && \
                     cp target/my-project.jar target/${branch}/${timestamp}/jar"
