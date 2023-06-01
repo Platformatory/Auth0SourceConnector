@@ -115,7 +115,7 @@ public class MySourceTask extends SourceTask {
 
             return records;
         } catch (Auth0Exception | JsonProcessingException e) {
-            log.error("Error while fetching data: {}", e.getMessage());
+            log.error("Error fetching data: {}", e.getMessage());
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
