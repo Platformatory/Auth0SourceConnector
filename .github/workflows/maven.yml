@@ -36,14 +36,7 @@ jobs:
         run: |
             branch=$(echo "${GITHUB_REF#refs/heads/}")
             timestamp=$(date '+%d-%m-%Y:%H:%M')
-            ls -al /workspace/target/${branch}/${timestamp}
-
-     
-      
-      - name: Debug target directory
-        run: |
-          ls -al /workspace/target
-
+            ls -al /workspace/target/
 
       - name: Upload Fat JAR to GitHub Release
         uses: actions/upload-release-asset@v1
