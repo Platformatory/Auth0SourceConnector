@@ -16,11 +16,19 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+
+      - name: Build Maven
+        run: mvn clean package
+
+      - name: List files and directories
+        run: |
+          ls -al
+          ls -al target
 
       - name: Build Maven inside Docker Container
         run: |
@@ -30,13 +38,14 @@ jobs:
               -v ${{ github.workspace }}:/workspace \
               -w /workspace \
               maven:3.8.4-openjdk-11 \
-              sh -c "mvn clean package"
-              
-      - name: Check generated JAR files
+              sh -c "mvn clean package && \
+                    cp target/my-project-fat.jar target/${branch}/${timestamp}/fat-jar && \
+                    cp target/my-project.jar target/${branch}/${timestamp}/jar"
+
+      - name: List files and directories after build
         run: |
-            branch=$(echo "${GITHUB_REF#refs/heads/}")
-            timestamp=$(date '+%d-%m-%Y:%H:%M')
-            ls -al /workspace/
+          ls -al
+          ls -al target
 
       - name: Upload Fat JAR to GitHub Release
         uses: actions/upload-release-asset@v1
