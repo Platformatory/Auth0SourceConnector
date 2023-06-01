@@ -22,8 +22,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Build Maven
-        run: mvn clean package
+#       - name: Build Maven
+#         run: mvn clean package
 
       - name: Build Maven inside Docker Container
         run: |
@@ -34,8 +34,13 @@ jobs:
               -w /workspace \
               maven:3.8.4-openjdk-11 \
               sh -c "mvn clean package && \
-                    cp target/my-project-fat.jar target/${branch}/${timestamp}/fat-jar && \
-                    cp target/my-project.jar target/${branch}/${timestamp}/jar"
+                    cp target/ target/${branch}/${timestamp}/fat-jar && \
+                    cp target/ target/${branch}/${timestamp}/jar"
+     
+      
+      - name: Debug target directory
+        run: |
+          ls -al /workspace/target
 
 
       - name: Upload Fat JAR to GitHub Release
