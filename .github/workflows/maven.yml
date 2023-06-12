@@ -53,7 +53,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
-          tag_name: v1.0.2
+          tag_name: v1.0.3
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
