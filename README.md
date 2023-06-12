@@ -82,5 +82,17 @@ This will build the Docker image and start a container with the Kafka Connect se
 To start the connector, simply run:
 
 ```bash
-docker-compose up -d
+curl -X POST -H "Content-Type: application/json" --data '{
+    "name": "auth0-source-connector",
+    "config": {
+        "connector.class": "com.platformatory.source.connector.MySourceConnector",
+        "tasks.max": "1",
+        "topic": "test1",
+        "api.endpoint": "users",
+        "domain": "dev-82fa48v2xh17ro8r.us.auth0.com",
+        "client.id": "R0dgVe210qJEjR9kNPGIzUAnI3iuv2Yx",
+        "client.secret": "7CKl2vjXio-_atfjR5glSbMSfEaWp3N4ghSdx2cr6bFnJpYW5pBx7icg6xuTMrGJ"
+    }
+}' http://localhost:8083/connectors
+```
 
