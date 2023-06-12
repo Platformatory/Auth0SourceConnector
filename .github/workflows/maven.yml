@@ -21,36 +21,50 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        
+      - name: Get Branch Name
+        id: get_branch
+        run: echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/})"
+      
+      - name: Get timestamp
+        id: timestamp
+        run: echo "::set-output name=timestamp::$(date '+%d-%m-%Y:%H:%M')"
 
       - name: Build Maven inside Docker Container
         run: |
           branch=$(echo "${GITHUB_REF#refs/heads/}")
-          timestamp=$(date '+%d-%m-%Y:%H:%M')
+          timestamp=${{ steps.timestamp.outputs.timestamp }}
           docker run --rm \
               -v ${{ github.workspace }}:/workspace \
               -w /workspace \
               maven:3.8.4-openjdk-11 \
               sh -c "mvn clean compile assembly:single && \
                     mkdir -p target/${branch}/${timestamp} && \
-                    cp target/my-project-fat.jar target/${branch}/${timestamp}/my-project-fat.jar"
+                    cp target/my-project.jar target/${branch}/${timestamp}/my-project.jar"
 
       - name: List files and directories after build
         run: |
           ls -al
           ls -al target
 
-      - name: Upload Fat JAR to GitHub Release
-        uses: actions/upload-release-asset@v1
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./target/${{ github.ref }}/${{ env.timestamp }}/fat-jar
-          asset_name: ${{ github.ref }}/fat-jar
-          asset_content_type: application/java-archive
+          tag_name: v1.0.2
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
 
-      - name: Upload JAR to GitHub Release
+      - name: Upload Release Asset
+        id: upload-release-asset 
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./target/${{ github.ref }}/${{ env.timestamp }}/jar
-          asset_name: ${{ github.ref }}/jar
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./target/${{ steps.get_branch.outputs.branch }}/${{ steps.timestamp.outputs.timestamp }}/my-project.jar
+          asset_name: my-project.jar
           asset_content_type: application/java-archive
