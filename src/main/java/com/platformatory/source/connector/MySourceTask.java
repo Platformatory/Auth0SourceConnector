@@ -91,32 +91,71 @@ public class MySourceTask extends SourceTask {
         Request<UsersPage> usersPageRequest = mgmt.users().list(new UserFilter());
         try {
             Response<UsersPage> usersPageResponse = usersPageRequest.execute();
-            ObjectMapper mapper = new ObjectMapper();
-            UsersPage usersPage = usersPageResponse.getBody();
+            int statusCode = usersPageResponse.getStatusCode();
 
-            List<SourceRecord> records = new ArrayList<>();
-            for (User user : usersPage.getItems()) {
-                // Only process users that are newer than the last stored position
-                if (lastStoredPosition == null || user.getUpdatedAt().getTime() > lastStoredPosition) {
-                    String jsonString = mapper.writeValueAsString(user);
+            if (statusCode == 200){
+                ObjectMapper mapper = new ObjectMapper();
+                UsersPage usersPage = usersPageResponse.getBody();
 
-                    Map<String, String> sourcePartition = Collections.singletonMap("my_source", "users");
-                    Map<String, Object> sourceOffset = Collections.singletonMap("position", user.getUpdatedAt().getTime());
+                List<SourceRecord> records = new ArrayList<>();
+                for (User user : usersPage.getItems()) {
+                    // Only process users that are newer than the last stored position
+                    if (lastStoredPosition == null || user.getUpdatedAt().getTime() > lastStoredPosition) {
+                        String jsonString = mapper.writeValueAsString(user);
 
-                    String key = user.getId();
-                    SourceRecord record = new SourceRecord(sourcePartition, sourceOffset, "users_" + config.getTopic(), Schema.STRING_SCHEMA, key, Schema.STRING_SCHEMA, jsonString);
-                    records.add(record);
-                    Thread.sleep(1000);
+                        Map<String, String> sourcePartition = Collections.singletonMap("my_source", "users");
+                        Map<String, Object> sourceOffset = Collections.singletonMap("position", user.getUpdatedAt().getTime());
 
-                    // Update the lastStoredPosition with the current user's updatedAt time
-                    lastStoredPosition = user.getUpdatedAt().getTime();
+                        String key = user.getId();
+                        SourceRecord record = new SourceRecord(sourcePartition, sourceOffset, "users_" + config.getTopic(), Schema.STRING_SCHEMA, key, Schema.STRING_SCHEMA, jsonString);
+                        records.add(record);
+
+                        // Update the lastStoredPosition with the current user's updatedAt time
+                        lastStoredPosition = user.getUpdatedAt().getTime();
+                    }
                 }
+
+                return records;
+            } else {
+                switch(statusCode) {
+                    case 400:
+                        log.error("Bad Request: {}", usersPageResponse.getBody());
+                        break;
+                    case 401:
+                        log.error("Unauthorized: {}", usersPageResponse.getBody());
+                        refreshToken(); // Assuming refreshToken can refresh the token
+                        break;
+                    case 403:
+                        log.error("Forbidden: {}", usersPageResponse.getBody());
+                        // Potentially handle insufficient scope here
+                        break;
+                    case 429:
+                        log.error("Too many requests: {}", usersPageResponse.getBody());
+                        // Exponential backoff
+                        int retryAfter = 1;
+                        if (usersPageResponse.getHeaders().containsKey("Retry-After")) {
+                            try {
+                                retryAfter = Integer.parseInt(usersPageResponse.getHeaders().get("Retry-After"));
+                            } catch (NumberFormatException e) {
+                                log.warn("Invalid Retry-After header", e);
+                            }
+                        }
+                        log.info("Sleeping for {} seconds", retryAfter);
+                        Thread.sleep(1000L * retryAfter);
+                        break;
+                    case 503:
+                        log.error("Service unavailable: {}", usersPageResponse.getBody());
+                        Thread.sleep(1000 * 60 * 5); // Wait for 5 minutes before next request
+                        break;
+                    default:
+                        log.error("Unhandled status code: {}", statusCode);
+                }
+                return Collections.emptyList();
             }
 
-            return records;
         } catch (Auth0Exception | JsonProcessingException e) {
             log.error("Error fetching data: {}", e.getMessage());
-        } catch (InterruptedException e) {
+        } catch (UnirestException | InterruptedException e) {
             throw new RuntimeException(e);
         }
 
