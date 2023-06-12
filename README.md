@@ -56,30 +56,20 @@ For containerized environments, you can use Docker to build an image and run the
 Create a Dockerfile in your project root:
 
 ```Dockerfile
+# Use the Kafka Connect base image
 FROM confluentinc/cp-kafka-connect:latest
 
-COPY ./path-to-your-jar/auth0-kafka-connector.jar /usr/share/java/kafka-connect-jdbc/
+# Set the working directory
+WORKDIR /usr/share/java/kafka-connect-jars/
 
-ENV CLASSPATH=/usr/share/java/kafka-connect-jdbc/* 
+# Download and add the JAR file from GitHub into the Docker image
+RUN wget https://github.com/itsviveksinghania/Auth0SourceConnector/releases/download/v1.0.3/my-project.jar
 ```
 
 This Dockerfile uses the latest Kafka Connect image provided by Confluent and copies the connector jar into the appropriate directory.
 
-### Docker Compose
 
-You can use Docker Compose to easily manage your services. Create a `docker-compose.yml` file:
-
-```yaml
-version: '3'
-services:
-  kafka-connect:
-    build: .
-    ports:
-      - 8083:8083
-```
-This will build the Docker image and start a container with the Kafka Connect service exposed on port 8083.
-
-To start the connector, simply run:
+### To start the connector, simply run:
 
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{
@@ -95,4 +85,3 @@ curl -X POST -H "Content-Type: application/json" --data '{
     }
 }' http://localhost:8083/connectors
 ```
-
